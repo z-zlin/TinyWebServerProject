@@ -1,0 +1,39 @@
+2025-09-06 11:58:41.558733 [info]: timer tick
+2025-09-06 11:58:46.558780 [info]: timer tick
+2025-09-06 11:58:51.558838 [info]: timer tick
+2025-09-06 11:58:54.531251 [info]: deal with the client(112.46.105.57)
+2025-09-06 11:58:54.531351 [info]: adjust timer once
+2025-09-06 11:58:54.531431 [info]: GET / HTTP/1.1
+2025-09-06 11:58:54.531449 [info]: Host: 123.56.65.202:9999
+2025-09-06 11:58:54.531461 [info]: Connection: keep-alive
+2025-09-06 11:58:54.531472 [info]: Upgrade-Insecure-Requests: 1
+2025-09-06 11:58:54.531479 [info]: oop!unknow header: Upgrade-Insecure-Requests: 1
+2025-09-06 11:58:54.531493 [info]: User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0
+2025-09-06 11:58:54.531505 [info]: oop!unknow header: User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0
+2025-09-06 11:58:54.531515 [info]: Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+2025-09-06 11:58:54.531525 [info]: oop!unknow header: Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+2025-09-06 11:58:54.531533 [info]: Accept-Encoding: gzip, deflate
+2025-09-06 11:58:54.531539 [info]: oop!unknow header: Accept-Encoding: gzip, deflate
+2025-09-06 11:58:54.531546 [info]: Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6
+2025-09-06 11:58:54.531553 [info]: oop!unknow header: Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6
+2025-09-06 11:58:54.531560 [info]: Cookie: csrftoken=7xJi7LjjvYVUBZNJmFjVOBlY8LVwaIQQa4kIt1f4WTOAuZAy1wuLUjhQpo5OoNbM
+2025-09-06 11:58:54.531566 [info]: oop!unknow header: Cookie: csrftoken=7xJi7LjjvYVUBZNJmFjVOBlY8LVwaIQQa4kIt1f4WTOAuZAy1wuLUjhQpo5OoNbM
+2025-09-06 11:58:54.531573 [info]: 
+2025-09-06 11:58:54.531606 [info]: request:HTTP/1.1 200 OK
+
+2025-09-06 11:58:54.531618 [info]: request:HTTP/1.1 200 OK
+Content-Length:586
+
+2025-09-06 11:58:54.531625 [info]: request:HTTP/1.1 200 OK
+Content-Length:586
+Connection:keep-alive
+
+2025-09-06 11:58:54.531632 [info]: request:HTTP/1.1 200 OK
+Content-Length:586
+Connection:keep-alive
+
+
+2025-09-06 11:58:54.532501 [info]: send data to the client(112.46.105.57)
+2025-09-06 11:58:54.532562 [info]: adjust timer once
+2025-09-06 11:58:56.558957 [info]: timer tick
+2025-09-06 11:59:01.559038 [info]: timer tick
