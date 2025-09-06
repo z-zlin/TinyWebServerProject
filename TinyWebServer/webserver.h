@@ -22,61 +22,65 @@ const int TIMESLOT = 5;             //最小超时单位
 class WebServer
 {
 public:
-    WebServer();
-    ~WebServer();
+    WebServer();//构造函数：初始化 HTTP 连接数组、设置根目录路径、创建定时器数组
+    ~WebServer();//析构函数：清理资源，关闭文件描述符，释放内存
 
     void init(int port , string user, string passWord, string databaseName,
               int log_write , int opt_linger, int trigmode, int sql_num,
-              int thread_num, int close_log, int actor_model);
+              int thread_num, int close_log, int actor_model);//初始化服务器配置参数
+    
+    //组件初始化函数
+    void thread_pool();// 初始化线程池
+    void sql_pool();// 初始化数据库连接池
+    void log_write();// 初始化日志系统
+    void trig_mode();// 设置触发模式
+    void eventListen();// 初始化事件监听
+    void eventLoop();// 事件循环
 
-    void thread_pool();
-    void sql_pool();
-    void log_write();
-    void trig_mode();
-    void eventListen();
-    void eventLoop();
-    void timer(int connfd, struct sockaddr_in client_address);
-    void adjust_timer(util_timer *timer);
-    void deal_timer(util_timer *timer, int sockfd);
-    bool dealclientdata();
-    bool dealwithsignal(bool& timeout, bool& stop_server);
-    void dealwithread(int sockfd);
-    void dealwithwrite(int sockfd);
+    //连接管理函数
+    void timer(int connfd, struct sockaddr_in client_address);// 为新连接创建定时器，还包括绑定文件描述符和将fd挂到epoll树上、初始化新连接
+    void adjust_timer(util_timer *timer);// 调整定时器时间
+    void deal_timer(util_timer *timer, int sockfd);// 处理定时器超时
+    bool dealclientdata();// 处理新客户端连接
+    bool dealwithsignal(bool& timeout, bool& stop_server);// 处理信号
+    void dealwithread(int sockfd);// 处理读事件
+    void dealwithwrite(int sockfd);// 处理写事件
 
 public:
-    //基础
-    int m_port;
-    char *m_root;
-    int m_log_write;
-    int m_close_log;
-    int m_actormodel;
+    //基础配置
+    int m_port;// 服务器端口
+    char *m_root;// 网站根目录路径
+    int m_log_write;// 日志写入方式（0-同步，1-异步）
+    int m_close_log;// 是否关闭日志（0-不关闭，1-关闭）
+    int m_actormodel;// 并发模型（0-Proactor，1-Reacto）
 
-    int m_pipefd[2];
-    int m_epollfd;
-    http_conn *users;
+    //网络相关
+    int m_pipefd[2];// 管道文件描述符，用于统一事件源
+    int m_epollfd;// epoll树根实例文件描述符
+    http_conn *users;// HTTP 连接数组，每个元素对应一个客户端连接
 
     //数据库相关
-    connection_pool *m_connPool;
+    connection_pool *m_connPool;// 数据库连接池指针
     string m_user;         //登陆数据库用户名
     string m_passWord;     //登陆数据库密码
     string m_databaseName; //使用数据库名
-    int m_sql_num;
+    int m_sql_num;// 数据库连接池数量
 
     //线程池相关
-    threadpool<http_conn> *m_pool;
-    int m_thread_num;
+    threadpool<http_conn> *m_pool;// 线程池指针
+    int m_thread_num;// 线程池线程数量
 
     //epoll_event相关
-    epoll_event events[MAX_EVENT_NUMBER];
+    epoll_event events[MAX_EVENT_NUMBER];// epoll 事件数组
 
-    int m_listenfd;
-    int m_OPT_LINGER;
-    int m_TRIGMode;
-    int m_LISTENTrigmode;
-    int m_CONNTrigmode;
+    int m_listenfd;// 监听socket文件描述符
+    int m_OPT_LINGER;// 优雅关闭连接选项
+    int m_TRIGMode;// 触发组合模式
+    int m_LISTENTrigmode;// listenfd触发模式
+    int m_CONNTrigmode;// connfd触发模式
 
     //定时器相关
-    client_data *users_timer;
-    Utils utils;
+    client_data *users_timer;// 客户端数据数组，每个元素对应一个连接的定时器信息
+    Utils utils;// 工具类对象，提供定时器管理和基础操作
 };
 #endif

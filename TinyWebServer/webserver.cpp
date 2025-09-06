@@ -1,6 +1,6 @@
 #include "webserver.h"
 
-WebServer::WebServer()
+WebServer::WebServer()//构造函数：初始化 HTTP 连接数组、设置根目录路径、创建定时器数组
 {
     //http_conn类对象
     users = new http_conn[MAX_FD];
