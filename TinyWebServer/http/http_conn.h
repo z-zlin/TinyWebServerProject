@@ -118,12 +118,17 @@ public:
 private:
     int m_sockfd;// 该HTTP连接的socket
     sockaddr_in m_address;// 通信的socket地址
+
+
+    //缓冲区相关,这些变量管理读写缓冲区及其状态
     char m_read_buf[READ_BUFFER_SIZE]; // 读缓冲区
     long m_read_idx;// 标识读缓冲区中已经读入的客户端数据的最后一个字节的下一个位置
     long m_checked_idx;// 当前正在分析的字符在读缓冲区中的位置
     int m_start_line; // 当前正在解析的行的起始位置
     char m_write_buf[WRITE_BUFFER_SIZE];// 写缓冲区
     int m_write_idx;// 写缓冲区中待发送的字节数
+
+    //解析状态相关,这些变量用于维护 HTTP 请求解析的状态
     CHECK_STATE m_check_state; // 当前主状态机的状态
     METHOD m_method;// 请求方法
     char m_real_file[FILENAME_LEN];// 客户请求的目标文件的完整路径
@@ -132,10 +137,15 @@ private:
     char *m_host;// 主机名
     long m_content_length;// HTTP请求的消息总长度
     bool m_linger;// HTTP请求是否要保持连接
+
+
+    //文件相关,这些变量用于管理请求的文件和发送操作
     char *m_file_address;// 客户请求的目标文件被mmap到内存中的起始位置
     struct stat m_file_stat;// 目标文件的状态
     struct iovec m_iv[2]; // 采用writev来执行写操作
     int m_iv_count;// 表示被写内存块的数量
+
+    
     int cgi;        //是否启用的POST
     char *m_string; //存储请求头数据
     int bytes_to_send;// 剩余要发送的字节数
