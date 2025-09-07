@@ -17,7 +17,7 @@ sort_timer_lst::~sort_timer_lst()
     }
 }
 
-void sort_timer_lst::add_timer(util_timer *timer)
+void sort_timer_lst::add_timer(util_timer *timer)//向链表中添加定时器，保持链表按超时时间升序排列。
 {
     if (!timer)
     {
@@ -119,7 +119,7 @@ void sort_timer_lst::tick()
     }
 }
 
-void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)
+void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)//内部使用的添加函数，从指定节点开始查找合适位置插入定时器。
 {
     util_timer *prev = lst_head;
     util_timer *tmp = prev->next;
@@ -145,7 +145,7 @@ void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)
     }
 }
 
-void Utils::init(int timeslot)
+void Utils::init(int timeslot)//初始化时间槽，设置定时器超时单位
 {
     m_TIMESLOT = timeslot;
 }
@@ -215,7 +215,7 @@ int *Utils::u_pipefd = 0;
 int Utils::u_epollfd = 0;
 
 class Utils;
-void cb_func(client_data *user_data)
+void cb_func(client_data *user_data)//定时器超时时的回调函数，关闭客户端连接并从epoll中移除。
 {
     epoll_ctl(Utils::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
     assert(user_data);
