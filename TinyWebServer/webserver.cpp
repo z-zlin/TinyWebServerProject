@@ -294,7 +294,7 @@ void WebServer::dealwithread(int sockfd)
         }
 
         //若监测到读事件，将该事件放入请求队列
-        m_pool->append(users + sockfd, 0);
+        m_pool->append(users + sockfd, 0);// 读任务
 
         while (true)
         {
@@ -318,7 +318,7 @@ void WebServer::dealwithread(int sockfd)
             LOG_INFO("deal with the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
 
             //若监测到读事件，将该事件放入请求队列
-            m_pool->append_p(users + sockfd);
+            m_pool->append_p(users + sockfd);// Proactor模式处理任务
 
             if (timer)
             {
@@ -343,7 +343,7 @@ void WebServer::dealwithwrite(int sockfd)
             adjust_timer(timer);
         }
 
-        m_pool->append(users + sockfd, 1);
+        m_pool->append(users + sockfd, 1);// 写任务
 
         while (true)
         {
