@@ -110,12 +110,12 @@ void WebServer::eventListen()
     if (0 == m_OPT_LINGER)
     {
         struct linger tmp = {0, 1};
-        setsockopt(m_listenfd, SOL_SOCKET, SO_LINGER, &tmp, sizeof(tmp));
+        setsockopt(m_listenfd, SOL_SOCKET, SO_LINGER, &tmp, sizeof(tmp));//默认延迟关闭
     }
     else if (1 == m_OPT_LINGER)
     {
         struct linger tmp = {1, 1};
-        setsockopt(m_listenfd, SOL_SOCKET, SO_LINGER, &tmp, sizeof(tmp));
+        setsockopt(m_listenfd, SOL_SOCKET, SO_LINGER, &tmp, sizeof(tmp));//设置立即关闭
     }
 
     int ret = 0;
@@ -126,7 +126,7 @@ void WebServer::eventListen()
     address.sin_port = htons(m_port);
 
     int flag = 1;
-    setsockopt(m_listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
+    setsockopt(m_listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));//设置端口复用
     ret = bind(m_listenfd, (struct sockaddr *)&address, sizeof(address));
     assert(ret >= 0);
     ret = listen(m_listenfd, 5);
@@ -142,16 +142,18 @@ void WebServer::eventListen()
     utils.addfd(m_epollfd, m_listenfd, false, m_LISTENTrigmode);
     http_conn::m_epollfd = m_epollfd;
 
-    ret = socketpair(PF_UNIX, SOCK_STREAM, 0, m_pipefd);
+    ret = socketpair(PF_UNIX, SOCK_STREAM, 0, m_pipefd);//创建一对相互连接的 UNIX 域套接字,将 m_pipefd[0] 
+    //加入 epoll 的监听集合（epoll_ctl(EPOLL_CTL_ADD)），关注其 “可读事件”,当信号发生时，信号处理函数向 m_pipefd[1] 写入一个字节（如1）
+    //m_pipefd[0] 因有数据可读被 epoll 检测到，epoll_wait 返回，事件循环中处理该 “信号通知”，安全执行后续操作（如关闭连接、释放资源）
     assert(ret != -1);
     utils.setnonblocking(m_pipefd[1]);
     utils.addfd(m_epollfd, m_pipefd[0], false, 0);
 
-    utils.addsig(SIGPIPE, SIG_IGN);
-    utils.addsig(SIGALRM, utils.sig_handler, false);
-    utils.addsig(SIGTERM, utils.sig_handler, false);
+    utils.addsig(SIGPIPE, SIG_IGN);// 忽略SIGPIPE信号，忽略此信号，防止写入已关闭的socket导致程序退出
+    utils.addsig(SIGALRM, utils.sig_handler, false);// 设置SIGALRM的信号处理函数，定时器信号，用于触发定时器检查
+    utils.addsig(SIGTERM, utils.sig_handler, false);// 设置SIGTERM的信号处理函数，终止信号，用于优雅关闭服务器
 
-    alarm(TIMESLOT);
+    alarm(TIMESLOT);//启动定时器，每隔TIMESLOT时间发送一次SIGNALRM信号,SIGALRM信号的作用是周期性地触发超时检查，确保服务器能够及时关闭那些在指定时间内没有活动的客户端连接，释放资源。
 
     //工具类,信号和描述符基础操作
     Utils::u_pipefd = m_pipefd;
@@ -169,8 +171,10 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     util_timer *timer = new util_timer;
     timer->user_data = &users_timer[connfd];
     timer->cb_func = cb_func;
+
+    //创建定时器并设置超时时间
     time_t cur = time(NULL);
-    timer->expire = cur + 3 * TIMESLOT;
+    timer->expire = cur + 3 * TIMESLOT;// 当前时间 + 3个时间槽
     users_timer[connfd].timer = timer;
     utils.m_timer_lst.add_timer(timer);
 }
@@ -180,7 +184,7 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
 void WebServer::adjust_timer(util_timer *timer)
 {
     time_t cur = time(NULL);
-    timer->expire = cur + 3 * TIMESLOT;
+    timer->expire = cur + 3 * TIMESLOT;// 重置为当前时间 + 3个时间槽
     utils.m_timer_lst.adjust_timer(timer);
 
     LOG_INFO("%s", "adjust timer once");
@@ -246,7 +250,7 @@ bool WebServer::dealwithsignal(bool &timeout, bool &stop_server)
     int ret = 0;
     int sig;
     char signals[1024];
-    ret = recv(m_pipefd[0], signals, sizeof(signals), 0);
+    ret = recv(m_pipefd[0], signals, sizeof(signals), 0);//从管道读端读取信号数据
     if (ret == -1)
     {
         return false;
@@ -257,9 +261,9 @@ bool WebServer::dealwithsignal(bool &timeout, bool &stop_server)
     }
     else
     {
-        for (int i = 0; i < ret; ++i)
+        for (int i = 0; i < ret; ++i)//遍历接收到的信号字节
         {
-            switch (signals[i])
+            switch (signals[i])//根据信号类型设置相应标志
             {
             case SIGALRM:
             {
