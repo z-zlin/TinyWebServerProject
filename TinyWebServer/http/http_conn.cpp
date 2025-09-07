@@ -536,7 +536,7 @@ bool http_conn::write()//向客户端发送 HTTP 响应
 {
     int temp = 0;
 
-    if (bytes_to_send == 0)
+    if (bytes_to_send == 0)// 如果没有数据要发送，重新注册读事件并重置连接
     {
         modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
         init();
@@ -545,39 +545,47 @@ bool http_conn::write()//向客户端发送 HTTP 响应
 
     while (1)
     {
-        temp = writev(m_sockfd, m_iv, m_iv_count);
+        temp = writev(m_sockfd, m_iv, m_iv_count);// 使用writev集中写方式发送数据
 
         if (temp < 0)
         {
+            // 如果发送缓冲区已满，等待下次可写事件
             if (errno == EAGAIN)
             {
                 modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
                 return true;
             }
+            // 其他错误，取消文件映射并返回失败
             unmap();
             return false;
         }
 
+        // 更新已发送和待发送字节数
         bytes_have_send += temp;
         bytes_to_send -= temp;
+
+        // 调整iovec结构
         if (bytes_have_send >= m_iv[0].iov_len)
         {
+            // 第一个缓冲区已发送完，调整第二个缓冲区
             m_iv[0].iov_len = 0;
             m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
             m_iv[1].iov_len = bytes_to_send;
         }
         else
         {
+            // 第一个缓冲区还未发送完
             m_iv[0].iov_base = m_write_buf + bytes_have_send;
             m_iv[0].iov_len = m_iv[0].iov_len - bytes_have_send;
         }
 
+        // 检查是否所有数据都已发送完毕
         if (bytes_to_send <= 0)
         {
-            unmap();
-            modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+            unmap();// 取消文件映射
+            modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);// 重新注册读事件
 
-            if (m_linger)
+            if (m_linger)// 根据是否保持连接决定是否重置连接状态
             {
                 init();
                 return true;
@@ -673,11 +681,12 @@ bool http_conn::process_write(HTTP_CODE ret)
         if (m_file_stat.st_size != 0)
         {
             add_headers(m_file_stat.st_size);
-            m_iv[0].iov_base = m_write_buf;//设置 iovec 结构用于高效发送
-            m_iv[0].iov_len = m_write_idx;
-            m_iv[1].iov_base = m_file_address;
-            m_iv[1].iov_len = m_file_stat.st_size;
-            m_iv_count = 2;
+            //设置 iovec 结构用于高效发送
+            m_iv[0].iov_base = m_write_buf;// HTTP头部缓冲区
+            m_iv[0].iov_len = m_write_idx;// HTTP头部长度
+            m_iv[1].iov_base = m_file_address;// 文件内容地址
+            m_iv[1].iov_len = m_file_stat.st_size;// 文件内容长度
+            m_iv_count = 2;// 两个缓冲区
             bytes_to_send = m_write_idx + m_file_stat.st_size;//计算需要发送的字节数
             return true;
         }

@@ -298,11 +298,11 @@ void WebServer::dealwithread(int sockfd)
 
         while (true)
         {
-            if (1 == users[sockfd].improv)
+            if (1 == users[sockfd].improv)// 检查工作线程是否处理完成
             {
-                if (1 == users[sockfd].timer_flag)
+                if (1 == users[sockfd].timer_flag)// 检查是否需要关闭连接
                 {
-                    deal_timer(timer, sockfd);
+                    deal_timer(timer, sockfd);// 处理定时器（关闭连接）
                     users[sockfd].timer_flag = 0;
                 }
                 users[sockfd].improv = 0;
