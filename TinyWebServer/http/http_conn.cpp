@@ -43,7 +43,7 @@ void http_conn::initmysql_result(connection_pool *connPool)
     {
         string temp1(row[0]);
         string temp2(row[1]);
-        users[temp1] = temp2;
+        users[temp1] = temp2;// 存入全局users映射
     }
 }
 
@@ -431,19 +431,19 @@ http_conn::HTTP_CODE http_conn::do_request()
             strcat(sql_insert, password);
             strcat(sql_insert, "')");
 
-            if (users.find(name) == users.end())
+            if (users.find(name) == users.end())//// 内存中不存在重名用户
             {
                 m_lock.lock();
-                int res = mysql_query(mysql, sql_insert);
-                users.insert(pair<string, string>(name, password));
+                int res = mysql_query(mysql, sql_insert);// 执行插入操作
+                users.insert(pair<string, string>(name, password));// 更新内存
                 m_lock.unlock();
 
-                if (!res)
+                if (!res)// 插入成功
                     strcpy(m_url, "/log.html");
                 else
                     strcpy(m_url, "/registerError.html");
             }
-            else
+            else// 用户已存在
                 strcpy(m_url, "/registerError.html");
         }
 
@@ -502,7 +502,7 @@ http_conn::HTTP_CODE http_conn::do_request()
         free(m_url_real);
     }
     else
-        strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);
+        strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);//复制登录和注册的文件到真实文件路径
 
     if (stat(m_real_file, &m_file_stat) < 0)// 检查文件是否存在和可访问
         return NO_RESOURCE;
