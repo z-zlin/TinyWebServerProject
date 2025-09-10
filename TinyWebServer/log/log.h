@@ -5,7 +5,7 @@
 #include <iostream>
 #include <string>
 #include <stdarg.h>
-#include <pthread.h>
+#include <thread>
 #include "block_queue.h"
 
 using namespace std;
@@ -23,6 +23,7 @@ public:
     static void *flush_log_thread(void *args)//异步写日志的线程入口函数
     {
         Log::get_instance()->async_write_log();
+        return nullptr;
     }
 
 
@@ -38,7 +39,7 @@ private:
     virtual ~Log();
 
 
-    void *async_write_log()//异步写入日志的工作函数
+    void async_write_log()//异步写入日志的工作函数
     {
         string single_log;
         //从阻塞队列中取出一个日志string，写入文件
@@ -71,6 +72,7 @@ private:
 
     locker m_mutex;//保护文件写入操作的互斥锁
     int m_close_log; //关闭日志
+    std::thread m_thread; // 异步日志线程
 };
 
 //只有在 m_close_log 为 0（不关闭日志）时才记录日志,自动获取日志单例实例,写入日志后自动调用 flush 确保及时写入,使用 ##__VA_ARGS__ 支持可变参数

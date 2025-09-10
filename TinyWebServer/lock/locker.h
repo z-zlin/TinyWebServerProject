@@ -2,114 +2,124 @@
 #define LOCKER_H
 
 #include <exception>
-#include <pthread.h>
-#include <semaphore.h>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <chrono>
 
+// 使用条件变量实现的计数信号量，避免依赖POSIX信号量
 class sem
 {
 public:
-    sem()
-    {
-        if (sem_init(&m_sem, 0, 0) != 0)
-        {
-            throw std::exception();
-        }
-    }
-    sem(int num)
-    {
-        if (sem_init(&m_sem, 0, num) != 0)
-        {
-            throw std::exception();
-        }
-    }
-    ~sem()
-    {
-        sem_destroy(&m_sem);
-    }
+    sem() : m_count(0) {}
+    explicit sem(int num) : m_count(num) {}
+    ~sem() {}
     bool wait()
     {
-        return sem_wait(&m_sem) == 0;
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_cv.wait(lock, [this]() { return m_count > 0; });
+        --m_count;
+        return true;
     }
     bool post()
     {
-        return sem_post(&m_sem) == 0;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            ++m_count;
+        }
+        m_cv.notify_one();
+        return true;
+    }
+    // 允许在构造后按需设置计数，用于保持旧代码赋值语义
+    void set(int count)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_count = count;
+        if (m_count > 0)
+        {
+            m_cv.notify_all();
+        }
     }
 
 private:
-    sem_t m_sem;
+    std::mutex m_mutex;
+    std::condition_variable m_cv;
+    int m_count;
 };
 class locker
 {
 public:
-    locker()
-    {
-        if (pthread_mutex_init(&m_mutex, NULL) != 0)
-        {
-            throw std::exception();
-        }
-    }
-    ~locker()
-    {
-        pthread_mutex_destroy(&m_mutex);
-    }
+    locker() {}
+    ~locker() {}
     bool lock()
     {
-        return pthread_mutex_lock(&m_mutex) == 0;
+        m_mutex.lock();
+        return true;
     }
     bool unlock()
     {
-        return pthread_mutex_unlock(&m_mutex) == 0;
+        m_mutex.unlock();
+        return true;
     }
-    pthread_mutex_t *get()
+    // 为了保持现有接口兼容，提供一个空指针，调用方不会解引用它
+    // 现有的cond::wait会忽略该参数，改用内部的std::condition_variable
+    void *get()
     {
-        return &m_mutex;
+        return nullptr;
     }
+    std::mutex &native() { return m_mutex; }
 
 private:
-    pthread_mutex_t m_mutex;
+    std::mutex m_mutex;
 };
 class cond
 {
 public:
-    cond()
+    cond() {}
+    ~cond() {}
+    // 兼容旧接口，忽略传入参数，使用内部mutex与cv
+    bool wait(void *)
     {
-        if (pthread_cond_init(&m_cond, NULL) != 0)
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_cv.wait(lock, [this]() { return m_notified; });
+        m_notified = false;
+        return true;
+    }
+    // 兼容旧接口的超时等待
+    bool timewait(void *, struct timespec t)
+    {
+        auto ns = std::chrono::seconds(t.tv_sec) + std::chrono::nanoseconds(t.tv_nsec);
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(ns);
+        std::unique_lock<std::mutex> lock(m_mutex);
+        bool ok = m_cv.wait_until(lock, deadline, [this]() { return m_notified; });
+        if (ok)
         {
-            //pthread_mutex_destroy(&m_mutex);
-            throw std::exception();
+            m_notified = false;
         }
-    }
-    ~cond()
-    {
-        pthread_cond_destroy(&m_cond);
-    }
-    bool wait(pthread_mutex_t *m_mutex)
-    {
-        int ret = 0;
-        //pthread_mutex_lock(&m_mutex);
-        ret = pthread_cond_wait(&m_cond, m_mutex);
-        //pthread_mutex_unlock(&m_mutex);
-        return ret == 0;
-    }
-    bool timewait(pthread_mutex_t *m_mutex, struct timespec t)
-    {
-        int ret = 0;
-        //pthread_mutex_lock(&m_mutex);
-        ret = pthread_cond_timedwait(&m_cond, m_mutex, &t);
-        //pthread_mutex_unlock(&m_mutex);
-        return ret == 0;
+        return ok;
     }
     bool signal()
     {
-        return pthread_cond_signal(&m_cond) == 0;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_notified = true;
+        }
+        m_cv.notify_one();
+        return true;
     }
     bool broadcast()
     {
-        return pthread_cond_broadcast(&m_cond) == 0;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_notified = true;
+        }
+        m_cv.notify_all();
+        return true;
     }
 
 private:
-    //static pthread_mutex_t m_mutex;
-    pthread_cond_t m_cond;
+    std::mutex m_mutex;
+    std::condition_variable m_cv;
+    bool m_notified{false};
 };
 #endif

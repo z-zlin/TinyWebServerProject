@@ -55,7 +55,7 @@ void connection_pool::init(string url, string User, string PassWord, string DBNa
 		++m_FreeConn;
 	}
 
-	reserve = sem(m_FreeConn);//初始化信号量，初始值为空闲连接数
+	reserve.set(m_FreeConn);//初始化信号量，初始值为空闲连接数
 
 	m_MaxConn = m_FreeConn;//设置最大连接数
 }

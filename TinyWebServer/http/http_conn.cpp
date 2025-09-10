@@ -399,11 +399,9 @@ http_conn::HTTP_CODE http_conn::do_request()
         //根据标志判断是登录检测还是注册检测
         char flag = m_url[1];
 
-        char *m_url_real = (char *)malloc(sizeof(char) * 200);
-        strcpy(m_url_real, "/");
-        strcat(m_url_real, m_url + 2);
-        strncpy(m_real_file + len, m_url_real, FILENAME_LEN - len - 1);
-        free(m_url_real);
+        std::string url_real = "/";
+        url_real += (m_url + 2);
+        strncpy(m_real_file + len, url_real.c_str(), FILENAME_LEN - len - 1);
 
         //将用户名和密码提取出来
         //user=123&passwd=123
@@ -585,43 +583,28 @@ http_conn::HTTP_CODE http_conn::do_request()
     // 处理静态页面请求
     if (*(p + 1) == '0')
     {
-        char *m_url_real = (char *)malloc(sizeof(char) * 200);
-        strcpy(m_url_real, "/register.html");
+        const char *m_url_real = "/register.html";
         strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
-
-        free(m_url_real);
     }
     else if (*(p + 1) == '1')
     {
-        char *m_url_real = (char *)malloc(sizeof(char) * 200);
-        strcpy(m_url_real, "/log.html");
+        const char *m_url_real = "/log.html";
         strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
-
-        free(m_url_real);
     }
     else if (*(p + 1) == '5')
     {
-        char *m_url_real = (char *)malloc(sizeof(char) * 200);
-        strcpy(m_url_real, "/picture.html");
+        const char *m_url_real = "/picture.html";
         strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
-
-        free(m_url_real);
     }
     else if (*(p + 1) == '6')
     {
-        char *m_url_real = (char *)malloc(sizeof(char) * 200);
-        strcpy(m_url_real, "/video.html");
+        const char *m_url_real = "/video.html";
         strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
-
-        free(m_url_real);
     }
     else if (*(p + 1) == '7')
     {
-        char *m_url_real = (char *)malloc(sizeof(char) * 200);
-        strcpy(m_url_real, "/fans.html");
+        const char *m_url_real = "/fans.html";
         strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
-
-        free(m_url_real);
     }
     else
         strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);//复制登录和注册的文件到真实文件路径

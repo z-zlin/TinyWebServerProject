@@ -4,7 +4,8 @@
 #include <list>
 #include <cstdio>
 #include <exception>
-#include <pthread.h>
+#include <thread>
+#include <vector>
 #include "../lock/locker.h"
 #include "../CGImysql/sql_connection_pool.h"
 
@@ -20,13 +21,12 @@ public:
 
 private:
     /*工作线程运行的函数，它不断从工作队列中取出任务并执行之*/
-    static void *worker(void *arg);
     void run();
 
 private:
     int m_thread_number;        //线程池中的线程数
     int m_max_requests;         //请求队列中允许的最大请求数
-    pthread_t *m_threads;       //描述线程池的数组，其大小为m_thread_number
+    std::vector<std::thread> m_threads; // 工作线程
     std::list<T *> m_workqueue; //请求队列
     locker m_queuelocker;       //保护请求队列的互斥锁
     sem m_queuestat;            //是否有任务需要处理（信号量）,自定义的信号量包装类，工作线程在队列为空时等待，有任务时被唤醒
@@ -34,35 +34,25 @@ private:
     int m_actor_model;          //模型切换，0表示Proactor模式，1表示Reactor模式
 };
 template <typename T>
-threadpool<T>::threadpool( int actor_model, connection_pool *connPool, int thread_number, int max_requests) : m_actor_model(actor_model),m_thread_number(thread_number), m_max_requests(max_requests), m_threads(NULL),m_connPool(connPool)
+threadpool<T>::threadpool( int actor_model, connection_pool *connPool, int thread_number, int max_requests) : m_actor_model(actor_model),m_thread_number(thread_number), m_max_requests(max_requests), m_connPool(connPool)
 {
     if (thread_number <= 0 || max_requests <= 0)
         throw std::exception();
     
-    // 创建线程数组
-    m_threads = new pthread_t[m_thread_number];
-    if (!m_threads)
-        throw std::exception();
-    
-    // 创建并分离线程
+    // 创建线程
+    m_threads.reserve(m_thread_number);
     for (int i = 0; i < thread_number; ++i)
     {
-        if (pthread_create(m_threads + i, NULL, worker, this) != 0)
-        {
-            delete[] m_threads;
-            throw std::exception();
-        }
-        if (pthread_detach(m_threads[i]))
-        {
-            delete[] m_threads;
-            throw std::exception();
-        }
+        m_threads.emplace_back([this](){ this->run(); });
     }
 }
 template <typename T>
 threadpool<T>::~threadpool()//清理线程池资源
 {
-    delete[] m_threads;
+    for (auto &t : m_threads)
+    {
+        if (t.joinable()) t.detach();
+    }
 }
 
 
@@ -97,15 +87,6 @@ bool threadpool<T>::append_p(T *request)//向请求队列中添加任务（Proac
     m_queuestat.post();
     return true;
 }
-
-template <typename T>
-void *threadpool<T>::worker(void *arg)//工作线程的入口函数
-{
-    threadpool *pool = (threadpool *)arg;//线程池对象指针
-    pool->run();//调用线程池的run方法
-    return pool;
-}
-
 
 template <typename T>
 void threadpool<T>::run()
