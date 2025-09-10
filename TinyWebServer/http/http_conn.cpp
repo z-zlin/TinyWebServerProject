@@ -423,25 +423,62 @@ http_conn::HTTP_CODE http_conn::do_request()
         {
             //如果是注册，先检测数据库中是否有重名的
             //没有重名的，进行增加数据
-            char *sql_insert = (char *)malloc(sizeof(char) * 200);
-            strcpy(sql_insert, "INSERT INTO user(username, passwd) VALUES(");
-            strcat(sql_insert, "'");
-            strcat(sql_insert, name);
-            strcat(sql_insert, "', '");
-            strcat(sql_insert, password);
-            strcat(sql_insert, "')");
-
             if (users.find(name) == users.end())//// 内存中不存在重名用户
             {
                 m_lock.lock();
-                int res = mysql_query(mysql, sql_insert);// 执行插入操作
-                users.insert(pair<string, string>(name, password));// 更新内存
-                m_lock.unlock();
-
-                if (!res)// 插入成功
-                    strcpy(m_url, "/log.html");
-                else
+                
+                // 使用预处理语句防止SQL注入
+                const char *sql_insert = "INSERT INTO user(username, passwd) VALUES(?, ?)";
+                MYSQL_STMT *stmt = mysql_stmt_init(mysql);
+                
+                if (stmt == NULL) {
+                    LOG_ERROR("mysql_stmt_init failed: %s", mysql_error(mysql));
+                    m_lock.unlock();
                     strcpy(m_url, "/registerError.html");
+                } else {
+                    // 准备预处理语句
+                    if (mysql_stmt_prepare(stmt, sql_insert, strlen(sql_insert)) != 0) {
+                        LOG_ERROR("mysql_stmt_prepare failed: %s", mysql_stmt_error(stmt));
+                        mysql_stmt_close(stmt);
+                        m_lock.unlock();
+                        strcpy(m_url, "/registerError.html");
+                    } else {
+                        // 绑定参数
+                        MYSQL_BIND bind[2];
+                        memset(bind, 0, sizeof(bind));
+                        
+                        // 绑定用户名参数
+                        bind[0].buffer_type = MYSQL_TYPE_STRING;
+                        bind[0].buffer = name;
+                        bind[0].buffer_length = strlen(name);
+                        
+                        // 绑定密码参数
+                        bind[1].buffer_type = MYSQL_TYPE_STRING;
+                        bind[1].buffer = password;
+                        bind[1].buffer_length = strlen(password);
+                        
+                        if (mysql_stmt_bind_param(stmt, bind) != 0) {
+                            LOG_ERROR("mysql_stmt_bind_param failed: %s", mysql_stmt_error(stmt));
+                            mysql_stmt_close(stmt);
+                            m_lock.unlock();
+                            strcpy(m_url, "/registerError.html");
+                        } else {
+                            // 执行预处理语句
+                            if (mysql_stmt_execute(stmt) != 0) {
+                                LOG_ERROR("mysql_stmt_execute failed: %s", mysql_stmt_error(stmt));
+                                mysql_stmt_close(stmt);
+                                m_lock.unlock();
+                                strcpy(m_url, "/registerError.html");
+                            } else {
+                                // 插入成功
+                                users.insert(pair<string, string>(name, password));// 更新内存
+                                mysql_stmt_close(stmt);
+                                m_lock.unlock();
+                                strcpy(m_url, "/log.html");
+                            }
+                        }
+                    }
+                }
             }
             else// 用户已存在
                 strcpy(m_url, "/registerError.html");
@@ -452,10 +489,95 @@ http_conn::HTTP_CODE http_conn::do_request()
         //若浏览器端输入的用户名和密码在表中可以查找到，返回1，否则返回0
         else if (*(p + 1) == '2')
         {
-            if (users.find(name) != users.end() && users[name] == password)
+            // 首先从内存中查找（快速验证）
+            if (users.find(name) != users.end() && users[name] == password) {
                 strcpy(m_url, "/welcome.html");
-            else
-                strcpy(m_url, "/logError.html");
+            } else {
+                // 如果内存中没有找到，使用预处理语句查询数据库
+                m_lock.lock();
+                
+                const char *sql_select = "SELECT passwd FROM user WHERE username = ?";
+                MYSQL_STMT *stmt = mysql_stmt_init(mysql);
+                
+                if (stmt == NULL) {
+                    LOG_ERROR("mysql_stmt_init failed: %s", mysql_error(mysql));
+                    m_lock.unlock();
+                    strcpy(m_url, "/logError.html");
+                } else {
+                    // 准备预处理语句
+                    if (mysql_stmt_prepare(stmt, sql_select, strlen(sql_select)) != 0) {
+                        LOG_ERROR("mysql_stmt_prepare failed: %s", mysql_stmt_error(stmt));
+                        mysql_stmt_close(stmt);
+                        m_lock.unlock();
+                        strcpy(m_url, "/logError.html");
+                    } else {
+                        // 绑定参数
+                        MYSQL_BIND bind[1];
+                        memset(bind, 0, sizeof(bind));
+                        
+                        // 绑定用户名参数
+                        bind[0].buffer_type = MYSQL_TYPE_STRING;
+                        bind[0].buffer = name;
+                        bind[0].buffer_length = strlen(name);
+                        
+                        if (mysql_stmt_bind_param(stmt, bind) != 0) {
+                            LOG_ERROR("mysql_stmt_bind_param failed: %s", mysql_stmt_error(stmt));
+                            mysql_stmt_close(stmt);
+                            m_lock.unlock();
+                            strcpy(m_url, "/logError.html");
+                        } else {
+                            // 执行预处理语句
+                            if (mysql_stmt_execute(stmt) != 0) {
+                                LOG_ERROR("mysql_stmt_execute failed: %s", mysql_stmt_error(stmt));
+                                mysql_stmt_close(stmt);
+                                m_lock.unlock();
+                                strcpy(m_url, "/logError.html");
+                            } else {
+                                // 绑定结果
+                                MYSQL_BIND result_bind;
+                                memset(&result_bind, 0, sizeof(result_bind));
+                                
+                                char db_password[100];
+                                unsigned long password_length;
+                                
+                                result_bind.buffer_type = MYSQL_TYPE_STRING;
+                                result_bind.buffer = db_password;
+                                result_bind.buffer_length = sizeof(db_password);
+                                result_bind.length = &password_length;
+                                
+                                if (mysql_stmt_bind_result(stmt, &result_bind) != 0) {
+                                    LOG_ERROR("mysql_stmt_bind_result failed: %s", mysql_stmt_error(stmt));
+                                    mysql_stmt_close(stmt);
+                                    m_lock.unlock();
+                                    strcpy(m_url, "/logError.html");
+                                } else {
+                                    // 获取结果
+                                    if (mysql_stmt_fetch(stmt) == 0) {
+                                        // 找到用户，验证密码
+                                        db_password[password_length] = '\0';
+                                        if (strcmp(db_password, password) == 0) {
+                                            // 登录成功，更新内存缓存
+                                            users[name] = password;
+                                            mysql_stmt_close(stmt);
+                                            m_lock.unlock();
+                                            strcpy(m_url, "/welcome.html");
+                                        } else {
+                                            mysql_stmt_close(stmt);
+                                            m_lock.unlock();
+                                            strcpy(m_url, "/logError.html");
+                                        }
+                                    } else {
+                                        // 用户不存在
+                                        mysql_stmt_close(stmt);
+                                        m_lock.unlock();
+                                        strcpy(m_url, "/logError.html");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
