@@ -36,7 +36,7 @@ struct client_data
 class util_timer//定时器节点类，包含超时时间、回调函数和链表指针。
 {
 public:
-    util_timer() : prev(NULL), next(NULL) {}
+    util_timer() : prev(nullptr), next(nullptr) {}
 
 public:
     time_t expire; // 定时器超时时间（绝对时间）

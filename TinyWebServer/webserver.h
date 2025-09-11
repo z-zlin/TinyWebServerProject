@@ -10,14 +10,17 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <cassert>
+#include <memory>
+#include <string>
 #include <sys/epoll.h>
 
 #include "./threadpool/threadpool.h"
 #include "./http/http_conn.h"
 
-const int MAX_FD = 65536;           //最大文件描述符
-const int MAX_EVENT_NUMBER = 10000; //最大事件数
-const int TIMESLOT = 5;             //最小超时单位
+constexpr int MAX_FD = 65536;           //最大文件描述符
+constexpr int MAX_EVENT_NUMBER = 10000; //最大事件数
+constexpr int TIMESLOT = 5;             //最小超时单位
+static_assert(MAX_FD > 0 && MAX_EVENT_NUMBER > 0 && TIMESLOT > 0, "Constants must be positive");
 
 class WebServer
 {
@@ -82,5 +85,11 @@ public:
     //定时器相关
     client_data *users_timer;// 客户端数据数组，每个元素对应一个连接的定时器信息
     Utils utils;// 工具类对象，提供定时器管理和基础操作
+private:
+    // 仅用于内存安全所有权管理，不改变对外接口
+    std::unique_ptr<http_conn[]> users_buf_;
+    std::unique_ptr<client_data[]> users_timer_buf_;
+    std::unique_ptr<threadpool<http_conn>> m_pool_holder_;
+    std::string m_root_storage_;
 };
 #endif

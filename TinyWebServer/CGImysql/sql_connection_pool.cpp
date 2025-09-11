@@ -36,17 +36,17 @@ void connection_pool::init(string url, string User, string PassWord, string DBNa
 	//创建指定数量的数据库连接
 	for (int i = 0; i < MaxConn; i++)
 	{
-		MYSQL *con = NULL;
+		MYSQL *con = nullptr;
 		con = mysql_init(con);
 
-		if (con == NULL)
+		if (con == nullptr)
 		{
 			LOG_ERROR("MySQL Error");
 			exit(1);
 		}
-		con = mysql_real_connect(con, url.c_str(), User.c_str(), PassWord.c_str(), DBName.c_str(), Port, NULL, 0);
+		con = mysql_real_connect(con, url.c_str(), User.c_str(), PassWord.c_str(), DBName.c_str(), Port, nullptr, 0);
 
-		if (con == NULL)
+		if (con == nullptr)
 		{
 			LOG_ERROR("MySQL Error");
 			exit(1);

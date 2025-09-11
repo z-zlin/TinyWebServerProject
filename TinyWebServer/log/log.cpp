@@ -13,7 +13,7 @@ Log::Log()
 
 Log::~Log()
 {
-    if (m_fp != NULL)
+    if (m_fp != nullptr)
     {
         fclose(m_fp);
     }
@@ -45,7 +45,7 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
     const char *p = strrchr(file_name, '/');
     char log_full_name[256] = {0};
 
-    if (p == NULL)
+    if (p == nullptr)
     {
         snprintf(log_full_name, 255, "%d_%02d_%02d_%s", my_tm.tm_year + 1900, my_tm.tm_mon + 1, my_tm.tm_mday, file_name);
     }
@@ -59,7 +59,7 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
     m_today = my_tm.tm_mday;
     
     m_fp = fopen(log_full_name, "a");
-    if (m_fp == NULL)
+    if (m_fp == nullptr)
     {
         return false;
     }
@@ -70,7 +70,7 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
 void Log::write_log(int level, const char *format, ...)
 {
     struct timeval now = {0, 0};
-    gettimeofday(&now, NULL);
+    gettimeofday(&now, nullptr);
     time_t t = now.tv_sec;
     struct tm *sys_tm = localtime(&t);
     struct tm my_tm = *sys_tm;

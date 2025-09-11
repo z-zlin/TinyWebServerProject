@@ -20,7 +20,7 @@ map<string, string> users;//存储用户名和密码的映射，用于用户认�
 void http_conn::initmysql_result(connection_pool *connPool)
 {
     //先从连接池中取一个连接
-    MYSQL *mysql = NULL;
+    MYSQL *mysql = nullptr;
     connectionRAII mysqlcon(&mysql, connPool);
 
     //在user表中检索username，passwd数据，浏览器端输入
@@ -135,16 +135,16 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMo
 //check_state默认为分析请求行状态
 void http_conn::init()
 {
-    mysql = NULL;
+    mysql = nullptr;
     bytes_to_send = 0;
     bytes_have_send = 0;
     m_check_state = CHECK_STATE_REQUESTLINE;
     m_linger = false;
     m_method = GET;
-    m_url = 0;
-    m_version = 0;
+    m_url = nullptr;
+    m_version = nullptr;
     m_content_length = 0;
-    m_host = 0;
+    m_host = nullptr;
     m_start_line = 0;
     m_checked_idx = 0;
     m_read_idx = 0;
@@ -343,7 +343,7 @@ http_conn::HTTP_CODE http_conn::process_read()//解析 HTTP 请求
 {
     LINE_STATUS line_status = LINE_OK;
     HTTP_CODE ret = NO_REQUEST;
-    char *text = 0;
+    char *text = nullptr;
 
     while ((m_check_state == CHECK_STATE_CONTENT && line_status == LINE_OK) || ((line_status = parse_line()) == LINE_OK))//使用状态机解析请求的每一行
     {

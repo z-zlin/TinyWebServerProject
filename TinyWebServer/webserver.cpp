@@ -3,18 +3,20 @@
 WebServer::WebServer()//构造函数：初始化 HTTP 连接数组、设置根目录路径、创建定时器数组
 {
     //http_conn类对象
-    users = new http_conn[MAX_FD];
+    users_buf_ = std::unique_ptr<http_conn[]>(new http_conn[MAX_FD]);
+    users = users_buf_.get();
 
     //root文件夹路径
     char server_path[200];
     getcwd(server_path, 200);
-    char root[6] = "/root";
-    m_root = (char *)malloc(strlen(server_path) + strlen(root) + 1);
-    strcpy(m_root, server_path);
-    strcat(m_root, root);
+    const char root[] = "/root";
+    m_root_storage_.assign(server_path);
+    m_root_storage_ += root;
+    m_root = const_cast<char*>(m_root_storage_.c_str());
 
     //定时器
-    users_timer = new client_data[MAX_FD];
+    users_timer_buf_ = std::unique_ptr<client_data[]>(new client_data[MAX_FD]);
+    users_timer = users_timer_buf_.get();
 }
 
 WebServer::~WebServer()
@@ -23,9 +25,8 @@ WebServer::~WebServer()
     close(m_listenfd);
     close(m_pipefd[1]);
     close(m_pipefd[0]);
-    delete[] users;
-    delete[] users_timer;
-    delete m_pool;
+    // 智能指针自动释放 users 与 users_timer
+    m_pool_holder_.reset();
 }
 
 void WebServer::init(int port, string user, string passWord, string databaseName, int log_write, 
@@ -97,7 +98,8 @@ void WebServer::sql_pool()
 void WebServer::thread_pool()
 {
     //线程池
-    m_pool = new threadpool<http_conn>(m_actormodel, m_connPool, m_thread_num);
+    m_pool_holder_ = std::unique_ptr<threadpool<http_conn>>(new threadpool<http_conn>(m_actormodel, m_connPool, m_thread_num));
+    m_pool = m_pool_holder_.get();
 }
 
 void WebServer::eventListen()
@@ -173,7 +175,7 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     timer->cb_func = cb_func;
 
     //创建定时器并设置超时时间
-    time_t cur = time(NULL);
+    time_t cur = time(nullptr);
     timer->expire = cur + 3 * TIMESLOT;// 当前时间 + 3个时间槽
     users_timer[connfd].timer = timer;
     utils.m_timer_lst.add_timer(timer);
@@ -183,7 +185,7 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
 //并对新的定时器在链表上的位置进行调整
 void WebServer::adjust_timer(util_timer *timer)
 {
-    time_t cur = time(NULL);
+    time_t cur = time(nullptr);
     timer->expire = cur + 3 * TIMESLOT;// 重置为当前时间 + 3个时间槽
     utils.m_timer_lst.adjust_timer(timer);
 

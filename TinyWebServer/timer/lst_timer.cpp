@@ -1,10 +1,10 @@
 #include "lst_timer.h"
 #include "../http/http_conn.h"
 
-sort_timer_lst::sort_timer_lst()//初始化链表，将头尾指针设为 NULL
+sort_timer_lst::sort_timer_lst()//初始化链表，将头尾指针设为 nullptr
 {
-    head = NULL;
-    tail = NULL;
+    head = nullptr;
+    tail = nullptr;
 }
 sort_timer_lst::~sort_timer_lst()//遍历整个链表，删除所有定时器节点，释放内存
 {
@@ -51,8 +51,8 @@ void sort_timer_lst::adjust_timer(util_timer *timer)//调整定时器位置
     if (timer == head)//如果是头节点，先移除再重新插入
     {
         head = head->next;
-        head->prev = NULL;
-        timer->next = NULL;
+        head->prev = nullptr;
+        timer->next = nullptr;
         add_timer(timer, head);
     }
     else//如果是中间节点，先移除再从下一个节点开始重新插入
@@ -71,21 +71,21 @@ void sort_timer_lst::del_timer(util_timer *timer)//从链表中删除定时器
     if ((timer == head) && (timer == tail))//处理特殊情况：链表只有一个节点、删除头节点、删除尾节点
     {
         delete timer;
-        head = NULL;
-        tail = NULL;
+        head = nullptr;
+        tail = nullptr;
         return;
     }
     if (timer == head)//处理特殊情况：删除头节点
     {
         head = head->next;
-        head->prev = NULL;
+        head->prev = nullptr;
         delete timer;
         return;
     }
     if (timer == tail)//处理特殊情况：删除尾节点
     {
         tail = tail->prev;
-        tail->next = NULL;
+        tail->next = nullptr;
         delete timer;
         return;
     }
@@ -100,7 +100,7 @@ void sort_timer_lst::tick()//处理超时定时器
         return;
     }
     
-    time_t cur = time(NULL);//获取当前时间
+    time_t cur = time(nullptr);//获取当前时间
     util_timer *tmp = head;
     while (tmp)//遍历链表，执行所有已超时定时器的回调函数
     {
@@ -112,7 +112,7 @@ void sort_timer_lst::tick()//处理超时定时器
         head = tmp->next;
         if (head)
         {
-            head->prev = NULL;
+            head->prev = nullptr;
         }
         delete tmp;//删除已处理的定时器节点
         tmp = head;
@@ -140,7 +140,7 @@ void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)//内部�
     {
         prev->next = timer;
         timer->prev = prev;
-        timer->next = NULL;
+        timer->next = nullptr;
         tail = timer;
     }
 }
@@ -211,7 +211,7 @@ void Utils::show_error(int connfd, const char *info)
     close(connfd);
 }
 
-int *Utils::u_pipefd = 0;
+int *Utils::u_pipefd = nullptr;
 int Utils::u_epollfd = 0;
 
 class Utils;
