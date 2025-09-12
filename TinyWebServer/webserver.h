@@ -87,9 +87,9 @@ public:
     Utils utils;// 工具类对象，提供定时器管理和基础操作
 private:
     // 仅用于内存安全所有权管理，不改变对外接口
-    std::unique_ptr<http_conn[]> users_buf_;
-    std::unique_ptr<client_data[]> users_timer_buf_;
-    std::unique_ptr<threadpool<http_conn>> m_pool_holder_;
-    std::string m_root_storage_;
+    std::unique_ptr<http_conn[]> users_buf_;// HTTP 连接数组，每个元素对应一个客户端连接
+    std::unique_ptr<client_data[]> users_timer_buf_;// 客户端数据数组，每个元素对应一个连接的定时器信息
+    std::unique_ptr<threadpool<http_conn>> m_pool_holder_;// 线程池指针
+    std::string m_root_storage_;// 网站根目录路径
 };
 #endif

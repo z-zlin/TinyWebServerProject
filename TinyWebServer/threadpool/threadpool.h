@@ -40,10 +40,10 @@ threadpool<T>::threadpool( int actor_model, connection_pool *connPool, int threa
         throw std::exception();
     
     // 创建线程
-    m_threads.reserve(m_thread_number);
+    m_threads.reserve(m_thread_number);//预留空间
     for (int i = 0; i < thread_number; ++i)
     {
-        m_threads.emplace_back([this](){ this->run(); });
+        m_threads.emplace_back([this](){ this->run(); });//创建线程,运行run函数,this指针指向当前线程池对象
     }
 }
 template <typename T>
@@ -51,7 +51,7 @@ threadpool<T>::~threadpool()//清理线程池资源
 {
     for (auto &t : m_threads)
     {
-        if (t.joinable()) t.detach();
+        if (t.joinable()) t.detach();//判断线程是否可join,可join则分离线程,线程结束时自动销毁,不会等待线程结束,不会阻塞主线程
     }
 }
 

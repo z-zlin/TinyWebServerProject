@@ -3,8 +3,8 @@
 WebServer::WebServer()//构造函数：初始化 HTTP 连接数组、设置根目录路径、创建定时器数组
 {
     //http_conn类对象
-    users_buf_ = std::unique_ptr<http_conn[]>(new http_conn[MAX_FD]);
-    users = users_buf_.get();
+    users_buf_ = std::unique_ptr<http_conn[]>(new http_conn[MAX_FD]);// 创建 HTTP 连接数组，每个元素对应一个客户端连接
+    users = users_buf_.get();// 获取 HTTP 连接数组的指针
 
     //root文件夹路径
     char server_path[200];
