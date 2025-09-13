@@ -20,6 +20,9 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <sys/uio.h>
+#include <vector>
+#include <mutex>
+#include <unordered_map>
 
 #include <time.h>
 #include "../log/log.h"
@@ -36,22 +39,23 @@ struct client_data
 class util_timer//定时器节点类，包含超时时间、回调函数和链表指针。
 {
 public:
-    util_timer() : prev(nullptr), next(nullptr) {}
+    util_timer() : prev(nullptr), next(nullptr), deleted(false) {}
 
 public:
     time_t expire; // 定时器超时时间（绝对时间）
     
     void (* cb_func)(client_data *);// 回调函数指针，用于处理超时
     client_data *user_data;// 指向客户端数据的指针
-    util_timer *prev;// 指向前一个定时器
-    util_timer *next;// 指向后一个定时器
+    util_timer *prev;// 指向前一个定时器（保留用于兼容性，但不再使用）
+    util_timer *next;// 指向后一个定时器（保留用于兼容性，但不再使用）
+    bool deleted; // 标记是否已删除，用于延迟删除
 };
 
 class sort_timer_lst
 {
 public:
-    sort_timer_lst();//构造函数：初始化链表头尾指针为NULL
-    ~sort_timer_lst();//析构函数：遍历链表并删除所有定时器节点
+    sort_timer_lst();//构造函数：初始化堆
+    ~sort_timer_lst();//析构函数：清空堆并删除所有定时器节点
 
     void add_timer(util_timer *timer);// 添加定时器
     void adjust_timer(util_timer *timer);// 调整定时器位置
@@ -59,10 +63,16 @@ public:
     void tick();// 处理超时定时器
 
 private:
-    void add_timer(util_timer *timer, util_timer *lst_head);// 内部添加函数
-
-    util_timer *head;// 链表头指针
-    util_timer *tail;// 链表尾指针
+    void heapify_up(int index);// 向上调整堆
+    void heapify_down(int index);// 向下调整堆
+    void swap_nodes(int i, int j);// 交换两个节点并更新索引映射
+    int get_parent(int index) const { return (index - 1) / 2; }// 获取父节点索引
+    int get_left_child(int index) const { return 2 * index + 1; }// 获取左子节点索引
+    int get_right_child(int index) const { return 2 * index + 2; }// 获取右子节点索引
+    
+    std::vector<util_timer*> timer_heap;// 定时器堆（vector实现）
+    std::unordered_map<util_timer*, int> timer_index_map;// 定时器到索引的映射
+    std::mutex heap_mutex;// 互斥锁，保护堆操作
 };
 
 class Utils//工具类，提供信号处理、文件描述符设置和定时器管理等功能

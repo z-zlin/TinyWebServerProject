@@ -85,7 +85,7 @@ public:
         return &m_address;
     }
     void initmysql_result(connection_pool *connPool);//初始化数据库查询结果，将用户名和密码加载到内存中。
-    int timer_flag;// 定时器标志
+    int timer_flag;// 定时器标志，表示该定时器是否需要被删除，0表示不需要，1表示需要。
     int improv;// 改进标志
 
 

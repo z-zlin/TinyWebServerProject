@@ -1,41 +1,96 @@
 #include "lst_timer.h"
 #include "../http/http_conn.h"
 
-sort_timer_lst::sort_timer_lst()//初始化链表，将头尾指针设为 nullptr
+sort_timer_lst::sort_timer_lst()//初始化堆
 {
-    head = nullptr;
-    tail = nullptr;
+    // vector和unordered_map会自动初始化为空
 }
-sort_timer_lst::~sort_timer_lst()//遍历整个链表，删除所有定时器节点，释放内存
+
+sort_timer_lst::~sort_timer_lst()//清空堆并删除所有定时器节点，释放内存
 {
-    util_timer *tmp = head;
-    while (tmp)
+    std::lock_guard<std::mutex> lock(heap_mutex);
+    for (auto timer : timer_heap)
     {
-        head = tmp->next;
-        delete tmp;
-        tmp = head;
+        delete timer;
+    }
+    timer_heap.clear();
+    timer_index_map.clear();
+}
+
+void sort_timer_lst::swap_nodes(int i, int j)//交换两个节点并更新索引映射
+{
+    if (i == j) return;
+    
+    // 交换vector中的节点
+    std::swap(timer_heap[i], timer_heap[j]);
+    
+    // 更新索引映射
+    timer_index_map[timer_heap[i]] = i;
+    timer_index_map[timer_heap[j]] = j;
+}
+
+void sort_timer_lst::heapify_up(int index)//向上调整堆
+{
+    while (index > 0)
+    {
+        int parent = get_parent(index);
+        if (timer_heap[index]->expire >= timer_heap[parent]->expire)
+        {
+            break; // 堆性质已满足
+        }
+        swap_nodes(index, parent);
+        index = parent;
     }
 }
 
-void sort_timer_lst::add_timer(util_timer *timer)//向链表中添加定时器，保持链表按超时时间升序排列。
+void sort_timer_lst::heapify_down(int index)//向下调整堆
+{
+    int size = timer_heap.size();
+    while (index < size)
+    {
+        int left_child = get_left_child(index);
+        int right_child = get_right_child(index);
+        int smallest = index;
+        
+        // 找到最小的子节点
+        if (left_child < size && timer_heap[left_child]->expire < timer_heap[smallest]->expire)
+        {
+            smallest = left_child;
+        }
+        if (right_child < size && timer_heap[right_child]->expire < timer_heap[smallest]->expire)
+        {
+            smallest = right_child;
+        }
+        
+        if (smallest == index)
+        {
+            break; // 堆性质已满足
+        }
+        
+        swap_nodes(index, smallest);
+        index = smallest;
+    }
+}
+
+void sort_timer_lst::add_timer(util_timer *timer)//向堆中添加定时器，保持按超时时间升序排列。
 {
     if (!timer)//检查定时器是否有效
     {
         return;
     }
-    if (!head)//如果链表为空，直接设置为头尾节点
-    {
-        head = tail = timer;
-        return;
-    }
-    if (timer->expire < head->expire)//如果新定时器超时时间小于头节点，插入到链表头部
-    {
-        timer->next = head;
-        head->prev = timer;
-        head = timer;
-        return;
-    }
-    add_timer(timer, head);//调用私有 add_timer 方法在合适位置插入
+    
+    std::lock_guard<std::mutex> lock(heap_mutex);
+    
+    // 重置删除标记
+    timer->deleted = false;
+    
+    // 将定时器添加到vector末尾
+    int index = timer_heap.size();
+    timer_heap.push_back(timer);
+    timer_index_map[timer] = index;
+    
+    // 向上调整堆
+    heapify_up(index);
 }
 void sort_timer_lst::adjust_timer(util_timer *timer)//调整定时器位置
 {
@@ -43,107 +98,101 @@ void sort_timer_lst::adjust_timer(util_timer *timer)//调整定时器位置
     {
         return;
     }
-    util_timer *tmp = timer->next;
-    if (!tmp || (timer->expire < tmp->expire))//如果定时器位置正确（超时时间小于下一个节点），直接返回
+    
+    std::lock_guard<std::mutex> lock(heap_mutex);
+    
+    // 查找定时器在堆中的位置
+    auto it = timer_index_map.find(timer);
+    if (it == timer_index_map.end())
     {
-        return;
+        return; // 定时器不在堆中
     }
-    if (timer == head)//如果是头节点，先移除再重新插入
-    {
-        head = head->next;
-        head->prev = nullptr;
-        timer->next = nullptr;
-        add_timer(timer, head);
-    }
-    else//如果是中间节点，先移除再从下一个节点开始重新插入
-    {
-        timer->prev->next = timer->next;
-        timer->next->prev = timer->prev;
-        add_timer(timer, timer->next);
-    }
+    
+    int index = it->second;
+    
+    // 向上和向下调整堆，恢复堆性质
+    heapify_up(index);
+    heapify_down(index);
 }
-void sort_timer_lst::del_timer(util_timer *timer)//从链表中删除定时器
+void sort_timer_lst::del_timer(util_timer *timer)//从堆中删除定时器
 {
     if (!timer)//检查定时器是否有效
     {
         return;
     }
-    if ((timer == head) && (timer == tail))//处理特殊情况：链表只有一个节点、删除头节点、删除尾节点
+    
+    std::lock_guard<std::mutex> lock(heap_mutex);
+    
+    // 查找定时器在堆中的位置
+    auto it = timer_index_map.find(timer);
+    if (it == timer_index_map.end())
     {
-        delete timer;
-        head = nullptr;
-        tail = nullptr;
-        return;
+        return; // 定时器不在堆中
     }
-    if (timer == head)//处理特殊情况：删除头节点
+    
+    int index = it->second;
+    int last_index = timer_heap.size() - 1;
+    
+    // 将待删除的节点与最后一个节点交换
+    swap_nodes(index, last_index);
+    
+    // 删除最后一个节点（即原来的待删除节点）
+    timer_heap.pop_back();
+    timer_index_map.erase(timer);
+    
+    // 如果删除的不是最后一个节点，需要调整堆
+    if (index < last_index)
     {
-        head = head->next;
-        head->prev = nullptr;
-        delete timer;
-        return;
+        // 从删除位置向上和向下调整堆
+        heapify_up(index);
+        heapify_down(index);
     }
-    if (timer == tail)//处理特殊情况：删除尾节点
-    {
-        tail = tail->prev;
-        tail->next = nullptr;
-        delete timer;
-        return;
-    }
-    timer->prev->next = timer->next;//处理一般情况：删除中间节点
-    timer->next->prev = timer->prev;
+    
+    // 删除定时器对象
     delete timer;
 }
 void sort_timer_lst::tick()//处理超时定时器
 {
-    if (!head)//检查链表是否为空
+    std::lock_guard<std::mutex> lock(heap_mutex);
+    
+    if (timer_heap.empty())//检查堆是否为空
     {
         return;
     }
     
     time_t cur = time(nullptr);//获取当前时间
-    util_timer *tmp = head;
-    while (tmp)//遍历链表，执行所有已超时定时器的回调函数
+    
+    // 处理所有超时的定时器
+    while (!timer_heap.empty())
     {
-        if (cur < tmp->expire)
+        util_timer *timer = timer_heap[0]; // 堆顶元素
+        
+        // 如果堆顶定时器未超时，说明后面的定时器也都未超时
+        if (cur < timer->expire)
         {
             break;
         }
-        tmp->cb_func(tmp->user_data);
-        head = tmp->next;
-        if (head)
+        
+        // 删除堆顶定时器（与最后一个节点交换后删除）
+        int last_index = timer_heap.size() - 1;
+        swap_nodes(0, last_index);
+        
+        util_timer *expired_timer = timer_heap[last_index];
+        timer_heap.pop_back();
+        timer_index_map.erase(expired_timer);
+        
+        // 如果堆不为空，调整堆顶
+        if (!timer_heap.empty())
         {
-            head->prev = nullptr;
+            heapify_down(0);
         }
-        delete tmp;//删除已处理的定时器节点
-        tmp = head;
+        
+        // 执行超时定时器的回调函数并删除
+        expired_timer->cb_func(expired_timer->user_data);
+        delete expired_timer;
     }
 }
 
-void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)//内部使用的添加函数，从指定节点开始查找合适位置插入定时器。
-{
-    util_timer *prev = lst_head;
-    util_timer *tmp = prev->next;
-    while (tmp)//从指定节点开始遍历链表
-    {
-        if (timer->expire < tmp->expire)//找到第一个超时时间大于新定时器的节点，插入到其前面
-        {
-            prev->next = timer;
-            timer->next = tmp;
-            tmp->prev = timer;
-            timer->prev = prev;
-            break;
-        }
-        prev = tmp;
-        tmp = tmp->next;
-    }
-    if (!tmp)//如果遍历到链表尾部仍未找到，则将新定时器插入到尾部
-    {
-        prev->next = timer;
-        timer->prev = prev;
-        timer->next = nullptr;
-        tail = timer;
-    }
-}
 
 void Utils::init(int timeslot)//初始化时间槽，设置定时器超时单位
 {
@@ -222,3 +271,4 @@ void cb_func(client_data *user_data)//定时器超时时的回调函数，关闭
     close(user_data->sockfd);//关闭 socket 连接
     http_conn::m_user_count--;//减少用户计数
 }
+
