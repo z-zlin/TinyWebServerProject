@@ -21,6 +21,9 @@ WebServer::WebServer()//构造函数：初始化 HTTP 连接数组、设置根�
 
 WebServer::~WebServer()
 {
+    // 停止超时事件处理器
+    utils.m_timer_lst.stop_timeout_processor();
+    
     close(m_epollfd);
     close(m_listenfd);
     close(m_pipefd[1]);

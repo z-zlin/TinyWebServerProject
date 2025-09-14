@@ -1,13 +1,154 @@
 #include "lst_timer.h"
 #include "../http/http_conn.h"
+#include <iostream>
+#include <thread>
+
+// 超时事件处理器实现
+timeout_event_processor::timeout_event_processor() 
+    : running(false), max_batch_size(50), max_queue_size(10000), current_queue_size(0) {
+}
+
+timeout_event_processor::~timeout_event_processor() {
+    stop();
+}
+
+void timeout_event_processor::start() {
+    if (running.load()) {
+        return;
+    }
+    
+    running.store(true);
+    processor_thread = std::thread(&timeout_event_processor::process_loop, this);
+}
+
+void timeout_event_processor::stop() {
+    if (!running.load()) {
+        return;
+    }
+    
+    running.store(false);
+    queue_cv.notify_all();
+    
+    if (processor_thread.joinable()) {
+        processor_thread.join();
+    }
+}
+
+void timeout_event_processor::add_timeout_event(util_timer* timer, time_t expire_time) {
+    if (!running.load()) {
+        // 处理器未运行，直接释放定时器内存
+        if (timer) {
+            delete timer;
+        }
+        return;
+    }
+    
+    // 流控检查 - 当队列接近满时，尝试强制处理一些事件
+    if (current_queue_size.load() >= max_queue_size.load() * 0.9) {
+        std::cerr << "Warning: Timeout event queue is nearly full, forcing batch processing" << std::endl;
+        // 强制唤醒处理线程
+        queue_cv.notify_one();
+        
+        // 等待一小段时间让处理线程处理一些事件
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    
+    // 如果队列仍然满，则直接处理当前事件，避免内存泄露
+    if (current_queue_size.load() >= max_queue_size.load()) {
+        std::cerr << "Warning: Timeout event queue is full, processing event immediately to avoid memory leak" << std::endl;
+        if (timer && !timer->deleted) {
+            try {
+                timer->cb_func(timer->user_data);
+            } catch (const std::exception& e) {
+                std::cerr << "Error in timeout callback (queue full): " << e.what() << std::endl;
+            }
+            delete timer;
+        }
+        return;
+    }
+    
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        event_queue.emplace(timer, expire_time);//添加事件到队列
+        current_queue_size.fetch_add(1);
+    }
+    
+    // 只有在队列达到批处理大小的一半时才唤醒线程，实现真正的批量处理
+    if (current_queue_size.load() >= max_batch_size.load() / 2) {
+        queue_cv.notify_one();
+    }
+}
+
+void timeout_event_processor::process_loop() {
+    while (running.load()) {
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        
+        // 等待事件或超时，增加等待时间以收集更多事件进行批量处理
+        queue_cv.wait_for(lock, std::chrono::milliseconds(200), [this] {
+            return !event_queue.empty() || !running.load();
+        });//等待事件或超时，如果事件队列为空或处理器停止，则退出循环
+        
+        if (!running.load()) {
+            break;
+        }
+        
+        if (!event_queue.empty()) {
+            lock.unlock();
+            process_batch();//批量处理事件
+            
+            // 如果队列中还有事件，继续处理（避免积压）
+            if (current_queue_size.load() > 0) {
+                continue;
+            }
+        }
+    }
+}
+
+void timeout_event_processor::process_batch() {
+    std::vector<timeout_event> batch;
+    batch.reserve(max_batch_size.load());//预留空间
+    
+    // 批量取出事件
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        size_t batch_size = std::min(event_queue.size(), max_batch_size.load());
+        
+        for (size_t i = 0; i < batch_size && !event_queue.empty(); ++i) {
+            batch.push_back(event_queue.front());
+            event_queue.pop();
+            current_queue_size.fetch_sub(1);//减少队列大小
+        }
+    }
+    
+    // 批量处理事件
+    for (auto& event : batch) {
+        if (event.timer && !event.timer->deleted) {
+            try {
+                event.timer->cb_func(event.timer->user_data);
+            } catch (const std::exception& e) {//捕获异常,打印错误信息,删除定时器.
+                std::cerr << "Error in timeout callback: " << e.what() << std::endl;
+            }
+            delete event.timer;
+        }
+    }
+}
 
 sort_timer_lst::sort_timer_lst()//初始化堆
 {
     // vector和unordered_map会自动初始化为空
+    event_processor = new timeout_event_processor();
+    processor_started.store(false);
 }
 
 sort_timer_lst::~sort_timer_lst()//清空堆并删除所有定时器节点，释放内存
 {
+    // 停止超时事件处理器
+    if (event_processor) {
+        event_processor->stop();
+        delete event_processor;
+        event_processor = nullptr;
+    }
+    
     std::lock_guard<std::mutex> lock(heap_mutex);
     for (auto timer : timer_heap)
     {
@@ -151,7 +292,7 @@ void sort_timer_lst::del_timer(util_timer *timer)//从堆中删除定时器
     // 删除定时器对象
     delete timer;
 }
-void sort_timer_lst::tick()//处理超时定时器
+void sort_timer_lst::tick()//处理超时定时器（惰性删除模式）
 {
     std::lock_guard<std::mutex> lock(heap_mutex);
     
@@ -162,7 +303,7 @@ void sort_timer_lst::tick()//处理超时定时器
     
     time_t cur = time(nullptr);//获取当前时间
     
-    // 处理所有超时的定时器
+    // 处理所有超时的定时器，但不立即执行回调
     while (!timer_heap.empty())
     {
         util_timer *timer = timer_heap[0]; // 堆顶元素
@@ -187,16 +328,54 @@ void sort_timer_lst::tick()//处理超时定时器
             heapify_down(0);
         }
         
-        // 执行超时定时器的回调函数并删除
-        expired_timer->cb_func(expired_timer->user_data);
-        delete expired_timer;
+        // 将超时事件添加到处理队列，而不是立即执行回调
+        if (event_processor && processor_started.load()) {
+            event_processor->add_timeout_event(expired_timer, expired_timer->expire);
+        } else {
+            // 如果处理器未启动，回退到同步处理
+            expired_timer->cb_func(expired_timer->user_data);
+            delete expired_timer;
+        }
     }
 }
 
+// 新增方法实现
+void sort_timer_lst::start_timeout_processor() {
+    if (event_processor && !processor_started.load()) {
+        event_processor->start();
+        processor_started.store(true);
+    }
+}
 
-void Utils::init(int timeslot)//初始化时间槽，设置定时器超时单位
+void sort_timer_lst::stop_timeout_processor() {
+    if (event_processor && processor_started.load()) {
+        event_processor->stop();
+        processor_started.store(false);
+    }
+}
+
+void sort_timer_lst::set_batch_size(size_t size) {
+    if (event_processor) {
+        event_processor->set_batch_size(size);
+    }
+}
+
+void sort_timer_lst::set_max_queue_size(size_t size) {
+    if (event_processor) {
+        event_processor->set_max_queue_size(size);
+    }
+}
+
+void Utils::init(int timeslot)//初始化时间槽，设置定时器超时单位，启动超时事件处理器，配置批处理参数
 {
     m_TIMESLOT = timeslot;
+    
+    // 启动超时事件处理器
+    m_timer_lst.start_timeout_processor();
+    
+    // 配置批处理参数
+    m_timer_lst.set_batch_size(50);        // 每批处理50个超时事件
+    m_timer_lst.set_max_queue_size(10000); // 最大队列10000个事件
 }
 
 //对文件描述符设置非阻塞

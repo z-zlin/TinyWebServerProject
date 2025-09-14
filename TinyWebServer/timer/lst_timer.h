@@ -23,6 +23,11 @@
 #include <vector>
 #include <mutex>
 #include <unordered_map>
+#include <queue>
+#include <condition_variable>
+#include <atomic>
+#include <thread>
+#include <chrono>
 
 #include <time.h>
 #include "../log/log.h"
@@ -51,6 +56,40 @@ public:
     bool deleted; // 标记是否已删除，用于延迟删除
 };
 
+// 超时事件结构
+struct timeout_event {
+    util_timer* timer;
+    time_t expire_time;
+    
+    timeout_event(util_timer* t, time_t et) : timer(t), expire_time(et) {}
+};
+
+// 超时事件处理器类
+class timeout_event_processor {
+public:
+    timeout_event_processor();
+    ~timeout_event_processor();
+    
+    void start(); // 启动处理线程
+    void stop();  // 停止处理线程
+    void add_timeout_event(util_timer* timer, time_t expire_time); // 添加超时事件
+    void set_batch_size(size_t size) { max_batch_size = size; } // 设置批处理大小
+    void set_max_queue_size(size_t size) { max_queue_size = size; } // 设置最大队列大小
+    
+private:
+    void process_loop(); // 处理循环
+    void process_batch(); // 批量处理超时事件
+    
+    std::queue<timeout_event> event_queue; // 超时事件队列
+    std::mutex queue_mutex; // 队列互斥锁
+    std::condition_variable queue_cv; // 队列条件变量
+    std::thread processor_thread; // 处理线程
+    std::atomic<bool> running; // 运行状态
+    std::atomic<size_t> max_batch_size; // 最大批处理大小
+    std::atomic<size_t> max_queue_size; // 最大队列大小
+    std::atomic<size_t> current_queue_size; // 当前队列大小
+};
+
 class sort_timer_lst
 {
 public:
@@ -60,7 +99,13 @@ public:
     void add_timer(util_timer *timer);// 添加定时器
     void adjust_timer(util_timer *timer);// 调整定时器位置
     void del_timer(util_timer *timer);// 删除定时器
-    void tick();// 处理超时定时器
+    void tick();// 处理超时定时器（惰性删除模式）
+    
+    // 新增方法
+    void start_timeout_processor(); // 启动超时事件处理器
+    void stop_timeout_processor();  // 停止超时事件处理器
+    void set_batch_size(size_t size); // 设置批处理大小
+    void set_max_queue_size(size_t size); // 设置最大队列大小
 
 private:
     void heapify_up(int index);// 向上调整堆
@@ -73,6 +118,10 @@ private:
     std::vector<util_timer*> timer_heap;// 定时器堆（vector实现）
     std::unordered_map<util_timer*, int> timer_index_map;// 定时器到索引的映射
     std::mutex heap_mutex;// 互斥锁，保护堆操作
+    
+    // 新增成员
+    timeout_event_processor* event_processor; // 超时事件处理器
+    std::atomic<bool> processor_started; // 处理器是否已启动
 };
 
 class Utils//工具类，提供信号处理、文件描述符设置和定时器管理等功能
