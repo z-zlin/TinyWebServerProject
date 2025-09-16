@@ -3,6 +3,108 @@
 #include <iostream>
 #include <thread>
 
+// 时间缓存管理器实现
+time_cache_manager& time_cache_manager::get_instance() {
+    static time_cache_manager instance;//单例模式,返回时间缓存管理器实例
+    return instance;
+}
+
+time_cache_manager::time_cache_manager() 
+    : running(false), update_interval(milliseconds(100)) {
+    // 记录系统启动时间
+    system_start_time = std::chrono::steady_clock::now();
+    system_start_time_t = time(nullptr);
+    cached_time = system_start_time;
+}
+
+time_cache_manager::~time_cache_manager() {
+    stop();
+}
+
+void time_cache_manager::start() {
+    if (running.load()) {
+        return;
+    }
+    
+    running.store(true);
+    update_thread = std::thread(&time_cache_manager::update_loop, this);//启动时间更新线程,更新时间缓存.此线程会周期性更新时间缓存,并通知其他线程更新时间缓存.
+}
+
+void time_cache_manager::stop() {
+    if (!running.load()) {
+        return;
+    }
+    
+    running.store(false);
+    update_cv.notify_all();
+    
+    if (update_thread.joinable()) {
+        update_thread.join();
+    }
+}
+
+
+void time_cache_manager::update_loop() {
+    while (running.load()) {
+        // 更新缓存时间
+        {
+            std::lock_guard<std::mutex> lock(cached_time_mutex);
+            cached_time = std::chrono::steady_clock::now();
+        }
+        
+        // 等待指定间隔
+        std::unique_lock<std::mutex> lock(update_mutex);
+        update_cv.wait_for(lock, update_interval, [this] {
+            return !running.load();
+        });
+    }
+}
+
+steady_time_point time_cache_manager::get_current_time() {
+    std::lock_guard<std::mutex> lock(cached_time_mutex);
+    return cached_time;
+}
+
+steady_time_point time_cache_manager::time_t_to_steady(time_t t) {
+    // 计算时间差并转换为steady_time_point
+    int64_t diff_seconds = t - system_start_time_t;
+    auto diff_duration = std::chrono::seconds(diff_seconds);
+    return system_start_time + diff_duration;
+}
+
+time_t time_cache_manager::steady_to_time_t(steady_time_point tp) {
+    // 计算时间差并转换为time_t
+    auto diff_duration = tp - system_start_time;
+    auto diff_seconds = std::chrono::duration_cast<std::chrono::seconds>(diff_duration).count();
+    return system_start_time_t + diff_seconds;
+}
+
+steady_time_point time_cache_manager::add_milliseconds(steady_time_point base, int64_t ms) {
+    return base + milliseconds(ms);
+}
+
+int64_t time_cache_manager::duration_to_milliseconds(steady_duration d) {//
+    return std::chrono::duration_cast<milliseconds>(d).count();
+}
+
+time_t time_cache_manager::get_current_time_t() {
+    steady_time_point now = get_current_time();
+    return steady_to_time_t(now);
+}
+
+time_t time_cache_manager::get_current_time_t_plus_seconds(int seconds) {
+    steady_time_point now = get_current_time();
+    steady_time_point future = add_milliseconds(now, seconds * 1000);
+    return steady_to_time_t(future);
+}
+
+// util_timer接口实现
+void util_timer::set_expire_milliseconds(int64_t ms) {//设置定时器超时时间,将时间转换为高精度时间,并添加到时间缓存中.
+    auto& time_cache = time_cache_manager::get_instance();
+    steady_time_point now = time_cache.get_current_time();
+    expire = time_cache.add_milliseconds(now, ms);
+}
+
 // 超时事件处理器实现
 timeout_event_processor::timeout_event_processor() 
     : running(false), max_batch_size(50), max_queue_size(10000), current_queue_size(0) {
@@ -12,7 +114,7 @@ timeout_event_processor::~timeout_event_processor() {
     stop();
 }
 
-void timeout_event_processor::start() {
+void timeout_event_processor::start() {//启动超时事件处理器
     if (running.load()) {
         return;
     }
@@ -34,7 +136,7 @@ void timeout_event_processor::stop() {
     }
 }
 
-void timeout_event_processor::add_timeout_event(util_timer* timer, time_t expire_time) {
+void timeout_event_processor::add_timeout_event(util_timer* timer, steady_time_point expire_time) {
     if (!running.load()) {
         // 处理器未运行，直接释放定时器内存
         if (timer) {
@@ -301,7 +403,9 @@ void sort_timer_lst::tick()//处理超时定时器（惰性删除模式）
         return;
     }
     
-    time_t cur = time(nullptr);//获取当前时间
+    // 使用高精度时间缓存，减少系统调用
+    auto& time_cache = time_cache_manager::get_instance();//获取时间缓存管理器实例
+    steady_time_point cur = time_cache.get_current_time();//获取当前时间
     
     // 处理所有超时的定时器，但不立即执行回调
     while (!timer_heap.empty())
@@ -366,9 +470,13 @@ void sort_timer_lst::set_max_queue_size(size_t size) {
     }
 }
 
+
 void Utils::init(int timeslot)//初始化时间槽，设置定时器超时单位，启动超时事件处理器，配置批处理参数
 {
     m_TIMESLOT = timeslot;
+    
+    // 启动时间缓存管理器
+    time_cache_manager::get_instance().start();
     
     // 启动超时事件处理器
     m_timer_lst.start_timeout_processor();

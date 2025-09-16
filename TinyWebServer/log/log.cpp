@@ -37,7 +37,9 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
     memset(m_buf, '\0', m_log_buf_size);
     m_split_lines = split_lines;
 
-    time_t t = time(NULL);
+    // 使用时间缓存管理器获取当前时间，减少系统调用
+    auto& time_cache = time_cache_manager::get_instance();
+    time_t t = time_cache.get_current_time_t();
     struct tm *sys_tm = localtime(&t);
     struct tm my_tm = *sys_tm;
 
@@ -69,9 +71,9 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
 
 void Log::write_log(int level, const char *format, ...)
 {
-    struct timeval now = {0, 0};
-    gettimeofday(&now, nullptr);
-    time_t t = now.tv_sec;
+    // 使用时间缓存管理器获取当前时间，减少系统调用
+    auto& time_cache = time_cache_manager::get_instance();
+    time_t t = time_cache.get_current_time_t();
     struct tm *sys_tm = localtime(&t);
     struct tm my_tm = *sys_tm;
     char s[16] = {0};
@@ -128,10 +130,10 @@ void Log::write_log(int level, const char *format, ...)
     string log_str;
     m_mutex.lock();
 
-    //写入的具体时间内容格式
-    int n = snprintf(m_buf, 48, "%d-%02d-%02d %02d:%02d:%02d.%06ld %s ",
+    //写入的具体时间内容格式（简化版本，不包含微秒）
+    int n = snprintf(m_buf, 48, "%d-%02d-%02d %02d:%02d:%02d %s ",
                      my_tm.tm_year + 1900, my_tm.tm_mon + 1, my_tm.tm_mday,
-                     my_tm.tm_hour, my_tm.tm_min, my_tm.tm_sec, now.tv_usec, s);
+                     my_tm.tm_hour, my_tm.tm_min, my_tm.tm_sec, s);
     
     int m = vsnprintf(m_buf + n, m_log_buf_size - n - 1, format, valst);
     m_buf[n + m] = '\n';

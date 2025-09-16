@@ -177,9 +177,10 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     timer->user_data = &users_timer[connfd];
     timer->cb_func = cb_func;
 
-    //创建定时器并设置超时时间
-    time_t cur = time(nullptr);
-    timer->expire = cur + 3 * TIMESLOT;// 当前时间 + 3个时间槽
+    //创建定时器并设置超时时间（使用高精度时间缓存）
+    auto& time_cache = time_cache_manager::get_instance();
+    steady_time_point now = time_cache.get_current_time();
+    timer->set_expire_milliseconds(3 * TIMESLOT * 1000);// 3个时间槽的毫秒数
     users_timer[connfd].timer = timer;
     utils.m_timer_lst.add_timer(timer);
 }
@@ -188,8 +189,8 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
 //并对新的定时器在链表上的位置进行调整
 void WebServer::adjust_timer(util_timer *timer)
 {
-    time_t cur = time(nullptr);
-    timer->expire = cur + 3 * TIMESLOT;// 重置为当前时间 + 3个时间槽
+    // 使用高精度时间缓存重置定时器
+    timer->set_expire_milliseconds(3 * TIMESLOT * 1000);// 重置为3个时间槽的毫秒数
     utils.m_timer_lst.adjust_timer(timer);
 
     LOG_INFO("%s", "adjust timer once");
