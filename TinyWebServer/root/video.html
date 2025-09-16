@@ -1,17 +1,27 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="UTF-8">
-        <title>awsl</title>
-    </head>
-    <body><br/>
-<br/>
-<div align="center"><font size="5"> <strong>你居然想看视频，不想关注我</strong></font></div>
-<br/>
-
-<br/>
-<br/>
-<div align="center"><video width="906" height="506" controls>
-    <source src="xxx.mp4" type="video/mp4">
-</video></div>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频播放 - TinyWebServer</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="media-container">
+        <h1 class="media-title">🎬 视频播放</h1>
+        
+        <div class="media-content">
+            <!-- 需要添加视频链接：xxx.mp4 -->
+            <video width="100%" height="auto" controls>
+                <source src="zuirenwubuxuan.mp4" type="video/mp4">
+                您的浏览器不支持视频播放。
+            </video>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; color: #999; font-size: 14px;">
+            <p>💡 提示：点击播放按钮开始观看视频</p>
+        </div>
+    </div>
+</body>
 </html>

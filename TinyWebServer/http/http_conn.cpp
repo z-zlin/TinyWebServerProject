@@ -17,6 +17,30 @@ const char *error_500_form = "There was an unusual problem serving the request f
 locker m_lock;//保护用户数据的互斥锁
 map<string, string> users;//存储用户名和密码的映射，用于用户认证
 
+// URL解码函数
+void url_decode(char *str) {
+    char *src = str;
+    char *dst = str;
+    
+    while (*src) {
+        if (*src == '%' && src[1] && src[2]) {
+            int value;
+            if (sscanf(src + 1, "%2x", &value) == 1) {
+                *dst++ = (char)value;
+                src += 3;
+            } else {
+                *dst++ = *src++;
+            }
+        } else if (*src == '+') {
+            *dst++ = ' ';
+            src++;
+        } else {
+            *dst++ = *src++;
+        }
+    }
+    *dst = '\0';
+}
+
 void http_conn::initmysql_result(connection_pool *connPool)
 {
     //先从连接池中取一个连接
@@ -606,8 +630,14 @@ http_conn::HTTP_CODE http_conn::do_request()
         const char *m_url_real = "/fans.html";
         strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
     }
-    else
-        strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);//复制登录和注册的文件到真实文件路径
+    else {
+        // 对于其他文件请求，先进行URL解码
+        char decoded_url[FILENAME_LEN];
+        strncpy(decoded_url, m_url, FILENAME_LEN - 1);
+        decoded_url[FILENAME_LEN - 1] = '\0';
+        url_decode(decoded_url);
+        strncpy(m_real_file + len, decoded_url, FILENAME_LEN - len - 1);//复制登录和注册的文件到真实文件路径
+    }
 
     if (stat(m_real_file, &m_file_stat) < 0)// 检查文件是否存在和可访问
         return NO_RESOURCE;

@@ -1,26 +1,36 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="UTF-8">
-        <title>WebServer</title>
-    </head>
-    <body>
-    <br/>
-    <br/>
-    <div align="center"><font size="5"> <strong>欢迎访问</strong></font></div>
-	<br/>
-		<br/>
-		<form action="0" method="post">
- 			<div align="center"><button type="submit">新用户</button></div>
-                </form>
-		<br/>
-                <form action="1" method="post">
-                        <div align="center"><button type="submit" >已有账号</button></div>
-                </form>
-		
-		
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>欢迎访问 - TinyWebServer</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🎉 欢迎访问</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 40px; font-size: 16px;">
+            欢迎来到TinyWebServer，请选择您的操作
+        </p>
+        
+        <form action="0" method="post">
+            <button type="submit" class="choice-btn">
+                ✨ 新用户注册
+            </button>
+        </form>
+        
+        <form action="1" method="post">
+            <button type="submit" class="choice-btn">
+                🔑 已有账号登录
+            </button>
+        </form>
+        
+        <div style="text-align: center; margin-top: 30px; color: #999; font-size: 14px;">
+            <p>💡 提示：新用户请先注册账号，已有账号请直接登录</p>
         </div>
-    </body>
+    </div>
+</body>
 </html>
 
 
