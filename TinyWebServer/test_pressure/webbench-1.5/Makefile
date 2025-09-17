@@ -1,7 +1,7 @@
-CFLAGS?=	-Wall -Wno-unused-parameter -ggdb -W -O
+CFLAGS?=	-Wall -Wno-unused-parameter -ggdb -W -O -fPIE
 CC?=		gcc
 LIBS?=
-LDFLAGS?=
+LDFLAGS?=	-pie
 PREFIX?=	/usr/local
 VERSION=1.5
 TMPDIR=/tmp/webbench-$(VERSION)
