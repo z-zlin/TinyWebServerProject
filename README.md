@@ -47,12 +47,12 @@ Linux 下高性能 C++ 轻量级 Web 服务器，基于 [qinguoyi/TinyWebServer]
     * 替换 `time_t` 为 `std::chrono::steady_clock::time_point`，支持毫秒级精度。
     * 100ms 周期时间缓存（`time_cache_manager` 单例），减少 `time()` 系统调用 99.9%（如每秒查询 10000 次 → 仅 10 次系统调用）。
 #### 优化效果
-* 定时器操作耗时降低 80%+，10500 并发下超时连接清理耗时从 20ms 降至 3ms。
+* 定时器操作耗时降低 ,并发下超时连接清理耗时降低。
 * 毫秒级精度支持，解决大文件传输时的连接误判超时问题。
 
 ### 4. 内存安全改进（稳定性提升）
 #### 技术方案
-* **资源托管：**用 `std::unique_ptr` 托管线程池（`std::unique_ptr<threadpool<http_conn>>`）、用户连接数组，自动释放资源。
+* **资源托管：** 用 `std::unique_ptr` 托管线程池（`std::unique_ptr<threadpool<http_conn>>`）、用户连接数组，自动释放资源。
 * **字符串处理：** `std::string` 替代 `char*`，内置边界检查,消除缓冲区溢出。
 #### 优化效果
 * 消除内存泄露风险，简化析构函数，防止悬空指针和重复释放。
@@ -64,9 +64,9 @@ Linux 下高性能 C++ 轻量级 Web 服务器，基于 [qinguoyi/TinyWebServer]
 |**触发模式**|**事件模型**|**速度（pages/min）**|**吞吐量（bytes/sec）**|**成功请求数**|
 |:---:|:---:|:---:|:---:|:---:|
 |LT+LT|Proactor|96,912|180,812|8,076|
-|LT+ET|Proactor|133,332|248,864|11,111|
+|LT+ET|Proactor|214284|399414|17857|
 |ET+LT|Proactor|251412|469302|20951|
-|ET+ET|Proactor|241,128|441,638|20,094|
+|ET+ET|Proactor|104796|195074|8733|
 |ET+ET|Reactor|186,672|348,454|15,556|
 ||||||
 
